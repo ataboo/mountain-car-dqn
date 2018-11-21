@@ -75,7 +75,7 @@ def main():
     gamma = 0.9
     epsilon = .95
 
-    trials = 100
+    trials = 5000
     trial_len = 500
 
     update_target_network = 1000
@@ -95,14 +95,13 @@ def main():
             new_state = new_state.reshape(1, 2)
             dqn_agent.remember(cur_state, action, reward, new_state, done)
 
-            dqn_agent.replay()
-            dqn_agent.target_train()
-
             cur_state = new_state
 
             if done:
                 break
             
+        dqn_agent.replay()
+        dqn_agent.target_train()
         print(f'Score: {score}')
 
         if trial % 10 == 0 or step < 199:
