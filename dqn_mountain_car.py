@@ -124,3 +124,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
+    # env = gym.make('MountainCar-v0')
+    # model = tf.keras.models.load_model('storage/chicken_dinner.model')
+    # test_model(env, model, 10)
