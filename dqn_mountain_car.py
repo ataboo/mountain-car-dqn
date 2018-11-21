@@ -65,8 +65,10 @@ class DQN:
             target_weights[i] = weights[i]
         self.target_model.set_weights(target_weights)
 
-    def save_model(self, fn):
-        self.model.save(fn)
+    def save_model(self, trial):
+        model_f = f"storage/trial_{trial}.model"
+
+        self.model.save(model_f)
 
 def main():
     env = gym.make("MountainCar-v0")
@@ -103,13 +105,14 @@ def main():
             
         print(f'Score: {score}')
 
-        if step >= 199 or done:
+        if trial % 10 == 0 or step < 199:
+            dqn_agent.save_model(trial)
+            print(f"Saved model")
+
+        if step >= 199:
             print("Failed to complete trial {}".format(trial))
-            if step %10 == 0:
-                dqn_agent.save_model("mc_models/trial-{}.model".format(trial))
         else:
             print("Completed in {} trials".format(trial))
-            dqn_agent.save_model("mc_models/success.model")
 
 if __name__ == "__main__":
     main()
