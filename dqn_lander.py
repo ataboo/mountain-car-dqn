@@ -1,15 +1,14 @@
 import gym
-import numpy as np
 from dqn_agent import DQNAgent, DQNConfig
 
 
 if __name__ == "__main__":
-    env = gym.make("MountainCar-v0")
+    env = gym.make("LunarLander-v2")
 
     cfg = DQNConfig()
-    cfg.model_savename = "mountain_car"
+    cfg.model_savename = "lunar_lander"
     cfg.plot_scores = True
-    cfg.validate_completions = False
+    cfg.validate_completions = True
 
     agent = DQNAgent(env, cfg)
     agent.train()

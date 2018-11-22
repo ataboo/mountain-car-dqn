@@ -15,16 +15,21 @@ import time
 class DQNConfig:
     """Configuration for the DQN agent"""
     
-    gamma = 0.99
-    epsilon = 1.0
-    epsilon_min = 0.1
+    gamma = 0.95
+    # float: starting rate of random actions
+    epsilon_max = 1.0
+    # float: minimum epsilon value
+    epsilon_min = 0.01
+    # Rate of decay of epsilon
     epsilon_decay = 0.995
-    learning_rate = 1e-3
+    # LR for both models
+    learning_rate = 1e-2
+    tau = 0.125
 
     # int: replay memories every n steps of a trial
     replay_frequency = 1
     # int: batch size to replay
-    replay_batch_size = 8
+    replay_batch_size = 16
 
     # float: any score at or below this is considered a failed trial
     losing_score = -200.0
@@ -35,7 +40,7 @@ class DQNConfig:
     # int: max steps per trial
     max_steps = 500
     # float: subtracted from the reward on a trial's last step
-    done_penalty = 20
+    done_reward = -20
 
     # str: successful models are saved to storage/{model_savename}_{start_time}.model
     model_savename = 'dqn'
@@ -65,7 +70,7 @@ class DQNAgent:
 
     def train(self, trial_count=1000):
         """Train the model for the specified number of trials"""
-
+        self.epsilon = self.config.epsilon_max
         scores = []
         
         for trial in range(trial_count):
@@ -113,7 +118,7 @@ class DQNAgent:
             action = self.__act(cur_state)
             new_state, reward, done, _ = self.env.step(action)
             score += reward
-            adj_reward = reward if not done else self.config.done_penalty
+            adj_reward = self.config.done_reward if done else reward
 
             self.__step(step, cur_state, action, adj_reward, new_state, done)
 
@@ -170,10 +175,10 @@ class DQNAgent:
         """Determine the action to take for the current state"""
 
         # Decay epsilon, respecting the lower limit.
-        self.config.epsilon = max(self.config.epsilon *self.config.epsilon_decay, self.config.epsilon_min)
+        self.epsilon = max(self.epsilon *self.config.epsilon_decay, self.config.epsilon_min)
 
         # Preform an 'exploratory' action or use one predicted by the NN model
-        if np.random.random() < self.config.epsilon:
+        if np.random.random() < self.epsilon:
             return self.env.action_space.sample()
         return np.argmax(self.model.predict(state.reshape(1, -1))[0])
 
@@ -197,10 +202,10 @@ class DQNAgent:
 
         actions = samples[:, 1].astype(int)
         rewards = samples[:, 2]
-        dones = samples[:, 4].astype(int)
+        dones = samples[:, 4].astype(float)
 
         # Add the target Q to rewards not on a 'done' frame
-        targets = rewards + self.config.gamma * next_q_targs * dones
+        targets = rewards + (self.config.gamma * next_q_targs * dones)
 
         # Set the weighted best predicted target to the corresponding action in the current predictions
         for i in range(self.config.replay_batch_size):
@@ -210,9 +215,12 @@ class DQNAgent:
         self.model.fit(states, q_targets, epochs=1, verbose=0)
 
     def __update_target_model(self):
-        """Copy the primary model's weights to the target model"""
+        """Update the target model weights"""
 
-        self.targ_model.set_weights(self.model.get_weights())
+        t_weights = np.array(self.targ_model.get_weights())
+        m_weights = np.array(self.model.get_weights())
+
+        self.targ_model.set_weights(t_weights * (1.0 - self.config.tau) + self.config.tau * m_weights)
 
     def __save_model(self, trial):
         """Save the primary model to storage"""
