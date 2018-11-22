@@ -15,7 +15,7 @@ import time
 class DQNConfig:
     """Configuration for the DQN agent"""
     
-    gamma = 0.95
+    gamma = 0.99
     # float: starting rate of random actions
     epsilon_max = 1.0
     # float: minimum epsilon value
@@ -23,27 +23,30 @@ class DQNConfig:
     # Rate of decay of epsilon
     epsilon_decay = 0.995
     # LR for both models
-    learning_rate = 1e-2
-    tau = 0.125
+    learning_rate = 1e-3
+    tau = 1e-3
 
     # int: replay memories every n steps of a trial
-    replay_frequency = 1
+    replay_period = 4
     # int: batch size to replay
-    replay_batch_size = 16
+    replay_batch_size = 64
+    # int: number of memories stored
+    memory_size = 100000
 
-    # float: any score at or below this is considered a failed trial
-    losing_score = -200.0
     
+    # float: any score at or below this is considered a failed trial
+    winning_score = 100.0
     # bool: test the model after successful trials
     validate_completions = False
-
     # int: max steps per trial
     max_steps = 500
     # float: subtracted from the reward on a trial's last step
     done_reward = -20
-
     # str: successful models are saved to storage/{model_savename}_{start_time}.model
     model_savename = 'dqn'
+
+    nodes_per_layer = 256
+    epochs = 1
 
     # bool: plot trial scores while training
     plot_scores = False
@@ -67,16 +70,18 @@ class DQNAgent:
 
         self.model = self.__create_model()
         self.targ_model = self.__create_model()
+        self.__mean_text = False
 
     def train(self, trial_count=1000):
         """Train the model for the specified number of trials"""
         self.epsilon = self.config.epsilon_max
         scores = []
+        score_means = []
         
         for trial in range(trial_count):
             score = self.__run_training_trial()
 
-            if score > self.config.losing_score:
+            if score >= self.config.winning_score:
                 print(f"Completed trial {trial} with {score}")
                 self.model.save(f'storage/{self.config.model_savename}_{self.start_time}.model')
                 if self.config.validate_completions:
@@ -84,9 +89,11 @@ class DQNAgent:
             else:
                 print(f"Failed trial {trial + 1}")
                 
-            scores.append(score)
             if self.config.plot_scores:
-                self.__plot_scores(scores)
+                scores.append(score)
+                score_means.append(np.mean(scores[-100:]))
+
+                self.__plot_scores(scores, score_means)
         
         return scores
 
@@ -126,8 +133,6 @@ class DQNAgent:
 
             if done:
                 break
-            
-        self.__update_target_model()
 
         return score
 
@@ -135,19 +140,28 @@ class DQNAgent:
         """Create a neural network to take the env state as input and output actions"""
 
         model = Sequential()
-        model.add(Dense(256, input_dim=self.state_count, activation='relu'))
-        model.add(Dense(256, activation='relu'))
+        model.add(Dense(self.config.nodes_per_layer, input_dim=self.state_count, activation='relu'))
+        model.add(Dense(self.config.nodes_per_layer, activation='relu'))
         model.add(Dense(self.action_count))
         model.compile(loss="mean_squared_error", optimizer=Adam(lr=self.config.learning_rate))
 
         return model
 
-    def __plot_scores(self, scores):
+    def __plot_scores(self, scores, score_means):
         """Plot a list of scores without blocking execution"""
 
-        plot = plt.plot(scores)
-        plt.setp(plot, color='b')
+        x = np.arange(0.0, len(scores), 1.0)
 
+        plt.plot(x, scores, 'b', x, score_means, 'r--')
+
+        if not self.__mean_text:
+            self.__mean_text = plt.xlabel('')
+            self.__window_line = plt.axvline(0, alpha=0.3, color='r')
+
+        self.__mean_text.set_text('Mean Score (last 100): {0:0.2f}'.format(score_means[-1]))
+
+        self.__window_line.set_xdata(max(0, len(scores) - 100))
+        
         # Plot in interactive mode so it doesn't block
         plt.ion()
         plt.show()
@@ -166,8 +180,9 @@ class DQNAgent:
         """Save the step's state and replay memories"""
 
         self.memory.append([cur_state, action, reward, new_state, done])
+        self.memory = self.memory[-self.config.memory_size:]
 
-        if step % self.config.replay_frequency == 0:
+        if step % self.config.replay_period == 0:
             # ~.005 CPU, ~.008 sec GPU
             self.__replay_batched()
 
@@ -205,14 +220,16 @@ class DQNAgent:
         dones = samples[:, 4].astype(float)
 
         # Add the target Q to rewards not on a 'done' frame
-        targets = rewards + (self.config.gamma * next_q_targs * dones)
+        targets = rewards + (self.config.gamma * next_q_targs * (1 - dones))
 
         # Set the weighted best predicted target to the corresponding action in the current predictions
         for i in range(self.config.replay_batch_size):
             q_targets[i, actions[i]] = targets[i]
         
         # Fit the model using the adjusted q-targets
-        self.model.fit(states, q_targets, epochs=1, verbose=0)
+        self.model.fit(states, q_targets, epochs=self.config.epochs, verbose=0)
+
+        self.__update_target_model()
 
     def __update_target_model(self):
         """Update the target model weights"""

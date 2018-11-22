@@ -10,6 +10,10 @@ if __name__ == "__main__":
     cfg.model_savename = "mountain_car"
     cfg.plot_scores = True
     cfg.validate_completions = False
+    cfg.winning_score = -199.0
+    cfg.epochs = 1
+    cfg.replay_batch_size = 16
+    cfg.replay_period = 2
 
     agent = DQNAgent(env, cfg)
     agent.train()
