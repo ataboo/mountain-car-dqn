@@ -1,6 +1,7 @@
 import gym
 import numpy as np
 from dqn_agent import DQNAgent, DQNConfig
+import tensorflow as tf
 
 
 if __name__ == "__main__":
@@ -16,6 +17,8 @@ if __name__ == "__main__":
     cfg.replay_period = 2
 
     agent = DQNAgent(env, cfg)
-    agent.train()
+    agent.train(2000)
+
+    # model = tf.keras.models.load_model('trial_1250_keeper.model')
     
-    scores = agent.test_model(agent.model, True, 10)
+    scores = agent.test_model(agent.model, True, 20)

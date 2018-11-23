@@ -40,7 +40,7 @@ class DQNConfig:
     validate_completions = False
     # int: max steps per trial
     max_steps = 500
-    # float: subtracted from the reward on a trial's last step
+    # float: reward value for done step
     done_reward = -20
     # str: successful models are saved to storage/{model_savename}_{start_time}.model
     model_savename = 'dqn'
