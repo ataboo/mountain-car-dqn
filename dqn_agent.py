@@ -10,6 +10,7 @@ import random
 import gym
 import matplotlib.pyplot as plt
 import time
+from collections import deque
 
 
 class DQNConfig:
@@ -39,9 +40,12 @@ class DQNConfig:
     # bool: test the model after successful trials
     validate_completions = False
     # int: max steps per trial
-    max_steps = 500
-    # float: reward value for done step
-    done_reward = -20
+    max_steps = 1500
+
+    # bool: override the reward for a done frame
+    done_reward_overridden = False
+    # float: reward value for done frame (only active if done_reward_overridden)
+    done_reward_value = 0
     # str: successful models are saved to storage/{model_savename}_{start_time}.model
     model_savename = 'dqn'
 
@@ -66,7 +70,7 @@ class DQNAgent:
         self.action_count = self.__get_space_size(env.action_space)
         self.state_count = self.__get_space_size(env.observation_space)
 
-        self.memory = []
+        self.memory = deque(maxlen=config.memory_size)
 
         self.model = self.__create_model()
         self.targ_model = self.__create_model()
@@ -79,15 +83,18 @@ class DQNAgent:
         score_means = []
         
         for trial in range(trial_count):
+            start_time = time.time()
             score = self.__run_training_trial()
 
+            duration = time.time() - start_time
+
             if score >= self.config.winning_score:
-                print(f"Completed trial {trial} with {score}")
+                print(f"{trial + 1}: {score:.1f} ✓ in {duration:.3f}s")
                 self.model.save(f'storage/{self.config.model_savename}_{self.start_time}.model')
                 if self.config.validate_completions:
                     self.test_model(self.model, False, 1)
             else:
-                print(f"Failed trial {trial + 1}")
+                print(f"{trial + 1}: {score:.1f} in {duration:.3f}s")
                 
             if self.config.plot_scores:
                 scores.append(score)
@@ -125,7 +132,7 @@ class DQNAgent:
             action = self.__act(cur_state)
             new_state, reward, done, _ = self.env.step(action)
             score += reward
-            adj_reward = self.config.done_reward if done else reward
+            adj_reward = self.config.done_reward_value if done and self.config.done_reward_overridden else reward
 
             self.__step(step, cur_state, action, adj_reward, new_state, done)
 
@@ -180,7 +187,6 @@ class DQNAgent:
         """Save the step's state and replay memories"""
 
         self.memory.append([cur_state, action, reward, new_state, done])
-        self.memory = self.memory[-self.config.memory_size:]
 
         if step % self.config.replay_period == 0:
             # ~.005 CPU, ~.008 sec GPU

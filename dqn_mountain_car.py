@@ -15,6 +15,8 @@ if __name__ == "__main__":
     cfg.epochs = 1
     cfg.replay_batch_size = 16
     cfg.replay_period = 2
+    cfg.done_reward_overridden = True
+    cfg.done_reward_value = -20
 
     agent = DQNAgent(env, cfg)
     agent.train(2000)
